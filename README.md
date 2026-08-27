@@ -89,6 +89,8 @@ A client-side exercise explorer with:
 - Filter by category, equipment, and target muscle
 - Infinite scroll grid
 - Click (or focus + <kbd>Enter</kbd>) any card to see full details and step-by-step instructions in Spanish
+- **Registro de entrenamientos** (view "📋 Mis entrenamientos" / `#log`) — see below
+- Installable PWA with offline support (service worker `sw.js`)
 
 It loads its data at runtime from `data/exercises.min.json`, so it must be **served over HTTP** — via GitHub Pages, or locally:
 
@@ -98,6 +100,34 @@ python -m http.server    # then open http://localhost:8000/
 ```
 
 Opening `index.html` straight from the filesystem (`file://`) will not load the dataset.
+
+#### Registro de entrenamientos personales
+
+La vista **«📋 Mis entrenamientos»** (o el enlace `#log`) permite anotar sesiones de
+entrenamiento:
+
+- **Sesiones** con ejercicios y series (peso / reps / RPE), notas y "repetir última serie".
+- **Plantillas / rutinas** reutilizables: definí una vez los ejercicios y creá sesiones
+  precargadas con «Nueva sesión desde plantilla».
+- **«Última vez»**: cada ejercicio muestra tu registro anterior (en el editor y en el modal
+  de detalle) como referencia.
+- **Historial** de sesiones con volumen total y nº de series.
+
+Todo se guarda **solo en este navegador** (`localStorage`, clave `palestra-log-v1`) — no hay
+servidor ni sincronización. Usá **Exportar / Importar** (JSON) como copia de seguridad o para
+mover los datos a otro dispositivo.
+
+Código: `assets/store.js` (persistencia) y `assets/log.js` (interfaz).
+
+#### PWA / offline (`sw.js`)
+
+`assets/app.js` registra el service worker `sw.js`, que cachea el app-shell + el dataset y,
+en runtime, las imágenes/GIF que se ven (con tope). Así la app se instala y funciona sin
+conexión.
+
+> **⚠️ Al desplegar:** subí la constante `CACHE_VERSION` en `sw.js` cada vez que cambien
+> `index.html` o `assets/*`. Si no, los visitantes con el SW ya instalado seguirán viendo la
+> versión anterior hasta que caduque.
 
 ### `setup.html` — Developer Setup Guide
 
@@ -119,10 +149,17 @@ exercises-dataset/
 │   └── exercises.schema.json # JSON Schema (2020-12) describing every record
 ├── images/                  # 1,324 × 180×180 thumbnails  (© Gym visual)
 ├── videos/                  # 1,324 × 180×180 animation GIFs  (© Gym visual)
+├── assets/
+│   ├── app.js               # Browser logic (search, filters, modal, view switching)
+│   ├── store.js             # Workout log persistence (localStorage + export/import)
+│   ├── log.js               # Workout log UI ("Mis entrenamientos")
+│   ├── log.css              # Workout log styles
+│   └── theme-init.js        # Pre-paint theme restore
 ├── scripts/
 │   ├── build-data.mjs        # Regenerates data/exercises.min.json
 │   └── build-icons.mjs       # Rasterizes favicon.svg
 ├── index.html               # Interactive exercise browser (served over HTTP)
+├── sw.js                    # Service worker (offline / PWA) — bump CACHE_VERSION on deploy
 ├── setup.html               # Developer setup guide (DB import + API integration)
 ├── NOTICE.md                # Media attribution & license terms
 └── README.md

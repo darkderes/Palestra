@@ -10,6 +10,7 @@
   <link rel="shortcut icon" href="favicon.ico" />
   <link rel="apple-touch-icon" href="apple-touch-icon.png" />
   <link rel="manifest" href="site.webmanifest" />
+  <link rel="stylesheet" href="assets/log.css" />
   <meta name="theme-color" content="#ff4f00" />
   <meta http-equiv="Content-Security-Policy" content="default-src 'self'; img-src 'self' data:; style-src 'self' 'unsafe-inline'; script-src 'self'; connect-src 'self'; object-src 'none'; base-uri 'none'; form-action 'none'; frame-ancestors 'none'" />
   <!-- Apply saved theme before first paint to avoid flash -->
@@ -1138,6 +1139,12 @@
       <button class="top3-toggle" id="top3-toggle" type="button" aria-pressed="false">
         🏆 Top 3 por músculo
       </button>
+      <button class="top3-toggle" id="log-toggle" type="button" aria-pressed="false">
+        📋 Mis entrenamientos
+      </button>
+      <button class="top3-toggle" id="pick-cancel" type="button" hidden>
+        Cancelar selección
+      </button>
     </div>
     <div class="grid-wrapper">
       <div class="exercise-grid" id="exercise-grid"></div>
@@ -1145,6 +1152,7 @@
         <div class="load-spinner" id="load-spinner"></div>
       </div>
       <div class="top3-view" id="top3-view"></div>
+      <section id="log-view" hidden></section>
     </div>
   </main>
 </div>
@@ -1165,6 +1173,8 @@
   </div>
 </div>
 
+<script src="assets/store.js"></script>
 <script src="assets/app.js"></script>
+<script src="assets/log.js"></script>
 </body>
 </html>

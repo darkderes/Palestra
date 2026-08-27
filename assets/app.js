@@ -13,6 +13,7 @@
     page: 0,
     pageSize: 60,
     top3: false,
+    logOpen: false,
   };
 
   // Equipment items to show initially (rest behind "show more")
@@ -73,9 +74,13 @@
   const filtersWrapEl        = document.getElementById('filters-wrap');
   const top3ToggleEl         = document.getElementById('top3-toggle');
   const top3ViewEl           = document.getElementById('top3-view');
+  const logToggleEl          = document.getElementById('log-toggle');
+  const logViewEl            = document.getElementById('log-view');
+  const pickCancelEl         = document.getElementById('pick-cancel');
   const appShellEl           = document.querySelector('.app-shell');
   const modalPanelEl         = document.getElementById('modal-panel');
   let   lastFocusedEl        = null;
+  let   pickCallback         = null;   // registro: modo "elegir ejercicio"
 
   // ── Utility ────────────────────────────────────────
   function debounce(fn, ms) {
@@ -148,7 +153,10 @@
     readURL();
     applyFilters();
 
+    document.dispatchEvent(new CustomEvent('palestra:ready'));
+
     if (location.hash === '#top3') setTop3(true);
+    else if (location.hash === '#log') setLog(true);
   }
 
   // ── URL State (filters + search in ?query, view mode in #hash) ──
@@ -181,7 +189,8 @@
       if (state.filters[k].size) p.set(k, [...state.filters[k]].join(','));
     });
     const qs = p.toString();
-    const url = location.pathname + (qs ? '?' + qs : '') + (state.top3 ? '#top3' : '');
+    const hash = state.top3 ? '#top3' : state.logOpen ? '#log' : '';
+    const url = location.pathname + (qs ? '?' + qs : '') + hash;
     history.replaceState(null, '', url);
   }
 
@@ -276,6 +285,7 @@
 
   function applyFilters() {
     if (state.top3) setTop3(false, false);
+    if (state.logOpen && !pickCallback) setLog(false, false);
     const q = state.search.toLowerCase().trim();
     const { category, equipment, target } = state.filters;
 
@@ -346,7 +356,8 @@
     article.dataset.id = ex.id;
     article.tabIndex = 0;
     article.setAttribute('role', 'button');
-    article.setAttribute('aria-label', `${ex.name} — ver detalles`);
+    article.setAttribute('aria-label',
+      pickCallback ? `${ex.name} — agregar a la sesión` : `${ex.name} — ver detalles`);
 
     // Media
     const media = document.createElement('div');
@@ -479,17 +490,58 @@
   }
 
   function setTop3(on, sync = true) {
+    if (on && state.logOpen) setLog(false, false);
     state.top3 = on;
     top3ToggleEl.classList.toggle('active', on);
     top3ToggleEl.setAttribute('aria-pressed', String(on));
     top3ViewEl.classList.toggle('visible', on);
-    gridEl.style.display   = on ? 'none' : '';
-    sentinelEl.style.display = on ? 'none' : '';
+    updateViewVisibility();
     if (on) {
       if (!top3ViewEl.hasChildNodes()) renderTop3();
       window.scrollTo({ top: 0 });
     }
     if (sync) syncURL();
+  }
+
+  // ── Vista "Mis entrenamientos" (assets/log.js) ─────
+  function updateViewVisibility() {
+    const hideGrid = state.top3 || state.logOpen;
+    gridEl.style.display     = hideGrid ? 'none' : '';
+    sentinelEl.style.display = hideGrid ? 'none' : '';
+  }
+
+  function setLog(on, sync = true) {
+    if (on && state.top3) setTop3(false, false);
+    state.logOpen = on;
+    logToggleEl.classList.toggle('active', on);
+    logToggleEl.setAttribute('aria-pressed', String(on));
+    logViewEl.hidden = !on;
+    updateViewVisibility();
+    if (window.PalestraLog) on ? window.PalestraLog.show() : window.PalestraLog.hide();
+    if (on) window.scrollTo({ top: 0 });
+    if (sync) syncURL();
+  }
+
+  // Modo "elegir ejercicio": la grilla se usa como selector; un clic en una
+  // tarjeta llama a cb(id) en vez de abrir el modal. cb = null desactiva.
+  let pickReturnToLog = false;
+  function setPickMode(cb) {
+    const active = !!cb;
+    pickCancelEl.hidden = !active;
+    if (active) {
+      pickReturnToLog = state.logOpen;
+      pickCallback = cb;
+      setLog(false, false);
+      setTop3(false, false);
+      countEl.textContent = 'Elegí un ejercicio para agregarlo a la sesión…';
+      renderGrid();
+    } else {
+      pickCallback = null;
+      updateResultsBar();
+      renderGrid();
+      if (pickReturnToLog) setLog(true, false);
+      pickReturnToLog = false;
+    }
   }
 
   // ── Results Bar ────────────────────────────────────
@@ -579,6 +631,12 @@
       chip.append(lbl, val);
       modalMeta.appendChild(chip);
     });
+
+    // Registro: "última vez" + botón para registrar (assets/log.js)
+    if (window.PalestraLog) {
+      const logSection = window.PalestraLog.renderModalLogSection(ex.id);
+      if (logSection) modalMeta.appendChild(logSection);
+    }
 
     // Muscles
     modalMuscles.innerHTML = '';
@@ -686,13 +744,24 @@
     return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
   }
 
+  // Activar una tarjeta: en modo selección la agrega a la sesión; si no, abre el modal.
+  function activateCard(id) {
+    if (pickCallback) {
+      const cb = pickCallback;
+      setPickMode(null);
+      cb(id);
+    } else {
+      openModal(id);
+    }
+  }
+
   // Keyboard activation for exercise cards (role="button")
   function onCardKeydown(e) {
     if (e.key !== 'Enter' && e.key !== ' ' && e.key !== 'Spacebar') return;
     const card = e.target.closest('.exercise-card');
     if (!card) return;
     e.preventDefault();
-    openModal(card.dataset.id);
+    activateCard(card.dataset.id);
   }
 
   // ── Events ─────────────────────────────────────────
@@ -707,6 +776,10 @@
     // Top 3 por músculo toggle
     top3ToggleEl.addEventListener('click', () => setTop3(!state.top3));
 
+    // Mis entrenamientos (registro) toggle
+    logToggleEl.addEventListener('click', () => setLog(!state.logOpen));
+    pickCancelEl.addEventListener('click', () => setPickMode(null));
+
     // Top 3 view: card hover → load GIF, card click → modal
     top3ViewEl.addEventListener('mouseover', e => {
       const card = e.target.closest('.exercise-card');
@@ -716,7 +789,7 @@
     });
     top3ViewEl.addEventListener('click', e => {
       const card = e.target.closest('.exercise-card');
-      if (card) openModal(card.dataset.id);
+      if (card) activateCard(card.dataset.id);
     });
 
     // Filters collapse (mobile)
@@ -771,10 +844,10 @@
       }
     });
 
-    // Card activate → modal (click + keyboard)
+    // Card activate → modal / selección (click + keyboard)
     gridEl.addEventListener('click', e => {
       const card = e.target.closest('.exercise-card');
-      if (card) openModal(card.dataset.id);
+      if (card) activateCard(card.dataset.id);
     });
     gridEl.addEventListener('keydown', onCardKeydown);
     top3ViewEl.addEventListener('keydown', onCardKeydown);
@@ -785,8 +858,12 @@
       if (e.target === modalOverlay) closeModal();
     });
     document.addEventListener('keydown', e => {
-      if (e.key === 'Escape') closeModal();
-      else trapModalFocus(e);
+      if (e.key === 'Escape') {
+        if (pickCallback) { setPickMode(null); return; }
+        closeModal();
+      } else {
+        trapModalFocus(e);
+      }
     });
 
     // Infinite scroll
@@ -799,19 +876,40 @@
   }
 
 
+  // API mínima para assets/log.js (evita colisión de nombres de nivel superior)
+  window.Palestra = {
+    getExercise: exById,
+    get exercises() { return state.exercises; },
+    openExercise: openModal,
+    closeModal,
+    setPickMode,
+    showLog: (on = true) => setLog(on),
+    isLogOpen: () => state.logOpen,
+  };
+
   // ── Boot ───────────────────────────────────────────
   wireEvents();
   loadData();
+
+  // Service worker — soporte offline / PWA (no rompe si falla)
+  if ('serviceWorker' in navigator) {
+    window.addEventListener('load', () => {
+      navigator.serviceWorker.register('sw.js').catch(err =>
+        console.warn('Service worker no registrado:', err));
+    });
+  }
 
   // Back/forward and manual hash edits — filters/search live in ?query, view in #hash
   window.addEventListener('popstate', () => {
     if (!state.exercises.length) return;
     if (location.hash === '#top3') setTop3(true, false);
+    else if (location.hash === '#log') setLog(true, false);
     else { readURL(); applyFilters(); }
   });
   window.addEventListener('hashchange', () => {
     if (!state.exercises.length) return;
     if (location.hash === '#top3') setTop3(true, false);
-    else if (state.top3) applyFilters();
+    else if (location.hash === '#log') setLog(true, false);
+    else if (state.top3 || state.logOpen) applyFilters();
   });
 
