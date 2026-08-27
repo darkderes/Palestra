@@ -10,39 +10,21 @@
   "$defs": {
     "languageMap": {
       "type": "object",
-      "description": "Instruction text keyed by ISO 639-1 language code.",
+      "description": "Instruction text in Spanish, keyed by ISO 639-1 language code.",
       "properties": {
-        "en": { "type": "string" },
-        "es": { "type": "string" },
-        "it": { "type": "string" },
-        "tr": { "type": "string" },
-        "ru": { "type": "string" },
-        "zh": { "type": "string" },
-        "hi": { "type": "string" },
-        "pl": { "type": "string" },
-        "ko": { "type": "string" },
-        "fr": { "type": "string" }
+        "es": { "type": "string" }
       },
-      "required": ["en", "es", "it", "tr", "ru", "zh", "hi", "pl", "ko", "fr"],
-      "additionalProperties": { "type": "string" }
+      "required": ["es"],
+      "additionalProperties": false
     },
     "languageStepsMap": {
       "type": "object",
-      "description": "Step-by-step instructions as an array of strings, keyed by ISO 639-1 language code.",
+      "description": "Step-by-step instructions in Spanish as an array of strings, keyed by ISO 639-1 language code.",
       "properties": {
-        "en": { "$ref": "#/$defs/steps" },
-        "es": { "$ref": "#/$defs/steps" },
-        "it": { "$ref": "#/$defs/steps" },
-        "tr": { "$ref": "#/$defs/steps" },
-        "ru": { "$ref": "#/$defs/steps" },
-        "zh": { "$ref": "#/$defs/steps" },
-        "hi": { "$ref": "#/$defs/steps" },
-        "pl": { "$ref": "#/$defs/steps" },
-        "ko": { "$ref": "#/$defs/steps" },
-        "fr": { "$ref": "#/$defs/steps" }
+        "es": { "$ref": "#/$defs/steps" }
       },
-      "required": ["en", "es", "it", "tr", "ru", "zh", "hi", "pl", "ko", "fr"],
-      "additionalProperties": { "$ref": "#/$defs/steps" }
+      "required": ["es"],
+      "additionalProperties": false
     },
     "steps": {
       "type": "array",

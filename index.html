@@ -4,6 +4,15 @@
   <meta charset="UTF-8" />
   <meta name="viewport" content="width=device-width, initial-scale=1.0" />
   <title>Palestra · Biblioteca de ejercicios</title>
+  <script>
+    // Apply saved theme before first paint to avoid flash
+    (function () {
+      try {
+        var t = localStorage.getItem('palestra-theme');
+        if (t === 'dark' || t === 'light') document.documentElement.setAttribute('data-theme', t);
+      } catch (e) {}
+    })();
+  </script>
   <style>
     /* ── Reset ─────────────────────────────────────── */
     *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
@@ -27,11 +36,59 @@
       --text-primary:   #111111;
       --text-secondary: #71717a;
       --text-tertiary:  #a1a1aa;
+      --scrollbar:      #d4d4d8;
+      --scrollbar-hover:#a1a1aa;
+      --shadow-modal:   rgba(0, 0, 0, 0.1);
+      --overlay:        rgba(0, 0, 0, 0.45);
       --radius-sm:      6px;
       --radius-md:      10px;
       --radius-lg:      14px;
       --radius-xl:      18px;
       --sidebar-w:      260px;
+      color-scheme: light;
+    }
+    :root[data-theme="dark"] { color-scheme: dark; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) { color-scheme: dark; }
+    }
+
+    /* Dark palette — shared by explicit toggle and system preference */
+    :root[data-theme="dark"] {
+      --bg-base:        #0a0a0b;
+      --bg-surface:     #141416;
+      --bg-elevated:    #1c1c1f;
+      --bg-input:       #1c1c1f;
+      --border:         #2a2a2e;
+      --border-hover:   #3f3f46;
+      --accent:         #ff4f00;
+      --accent-muted:   rgba(255, 79, 0, 0.16);
+      --text-primary:   #f4f4f5;
+      --text-secondary: #a1a1aa;
+      --text-tertiary:  #71717a;
+      --scrollbar:      #3f3f46;
+      --scrollbar-hover:#52525b;
+      --shadow-modal:   rgba(0, 0, 0, 0.5);
+      --overlay:        rgba(0, 0, 0, 0.65);
+    }
+
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) {
+        --bg-base:        #0a0a0b;
+        --bg-surface:     #141416;
+        --bg-elevated:    #1c1c1f;
+        --bg-input:       #1c1c1f;
+        --border:         #2a2a2e;
+        --border-hover:   #3f3f46;
+        --accent:         #ff4f00;
+        --accent-muted:   rgba(255, 79, 0, 0.16);
+        --text-primary:   #f4f4f5;
+        --text-secondary: #a1a1aa;
+        --text-tertiary:  #71717a;
+        --scrollbar:      #3f3f46;
+        --scrollbar-hover:#52525b;
+        --shadow-modal:   rgba(0, 0, 0, 0.5);
+        --overlay:        rgba(0, 0, 0, 0.65);
+      }
     }
 
     /* ── Base ───────────────────────────────────────── */
@@ -48,8 +105,8 @@
     /* ── Scrollbar ──────────────────────────────────── */
     ::-webkit-scrollbar { width: 6px; }
     ::-webkit-scrollbar-track { background: transparent; }
-    ::-webkit-scrollbar-thumb { background: #d4d4d8; border-radius: 3px; }
-    ::-webkit-scrollbar-thumb:hover { background: #a1a1aa; }
+    ::-webkit-scrollbar-thumb { background: var(--scrollbar); border-radius: 3px; }
+    ::-webkit-scrollbar-thumb:hover { background: var(--scrollbar-hover); }
 
     /* ── App Shell ──────────────────────────────────── */
     .app-shell {
@@ -79,6 +136,8 @@
       z-index: 1;
       display: flex;
       align-items: center;
+      justify-content: space-between;
+      gap: 8px;
     }
 
     .sidebar-logo {
@@ -90,6 +149,35 @@
 
     .sidebar-logo span {
       color: var(--accent);
+    }
+
+    .theme-toggle {
+      display: flex;
+      align-items: center;
+      justify-content: center;
+      width: 30px;
+      height: 30px;
+      flex-shrink: 0;
+      border-radius: var(--radius-sm);
+      border: 1px solid var(--border);
+      background: var(--bg-elevated);
+      color: var(--text-secondary);
+      transition: color 0.15s ease, border-color 0.15s ease, background 0.15s ease;
+    }
+
+    .theme-toggle:hover {
+      color: var(--text-primary);
+      border-color: var(--border-hover);
+    }
+
+    .theme-toggle svg { width: 16px; height: 16px; }
+    .theme-toggle .icon-sun  { display: none; }
+    .theme-toggle .icon-moon { display: block; }
+    :root[data-theme="dark"] .theme-toggle .icon-sun  { display: block; }
+    :root[data-theme="dark"] .theme-toggle .icon-moon { display: none; }
+    @media (prefers-color-scheme: dark) {
+      :root:not([data-theme="light"]) .theme-toggle .icon-sun  { display: block; }
+      :root:not([data-theme="light"]) .theme-toggle .icon-moon { display: none; }
     }
 
     .sidebar-body {
@@ -335,7 +423,7 @@
     .exercise-card:hover {
       transform: translateY(-3px);
       border-color: var(--accent);
-      box-shadow: 0 8px 24px rgba(0,0,0,0.1);
+      box-shadow: 0 8px 24px var(--shadow-modal);
     }
 
     .card-media {
@@ -436,7 +524,7 @@
     .modal-overlay {
       position: fixed;
       inset: 0;
-      background: rgba(0, 0, 0, 0.45);
+      background: var(--overlay);
       backdrop-filter: blur(6px);
       -webkit-backdrop-filter: blur(6px);
       display: flex;
@@ -800,6 +888,15 @@
   <aside class="sidebar">
     <div class="sidebar-header">
       <div class="sidebar-logo">Pale<span>stra</span></div>
+      <button class="theme-toggle" id="theme-toggle" type="button" aria-label="Cambiar tema" title="Cambiar tema">
+        <svg class="icon-moon" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M21 12.79A9 9 0 1 1 11.21 3 7 7 0 0 0 21 12.79z"/>
+        </svg>
+        <svg class="icon-sun" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+          <circle cx="12" cy="12" r="4"/>
+          <path d="M12 2v2M12 20v2M4.93 4.93l1.41 1.41M17.66 17.66l1.41 1.41M2 12h2M20 12h2M6.34 17.66l-1.41 1.41M19.07 4.93l-1.41 1.41"/>
+        </svg>
+      </button>
     </div>
     <div class="sidebar-body">
       <!-- Search -->
@@ -898,6 +995,7 @@
   const modalMuscles  = document.getElementById('modal-muscles');
   const modalInstr    = document.getElementById('modal-instructions');
   const modalClose    = document.getElementById('modal-close');
+  const themeToggleEl = document.getElementById('theme-toggle');
 
   // ── Utility ────────────────────────────────────────
   function debounce(fn, ms) {
@@ -1260,14 +1358,11 @@
     if (secondaryMuscles.length > 0)  musclesGrid.appendChild(makeMuscleGroup('Secundario', secondaryMuscles, false));
     if (primaryMuscles.length > 0 || secondaryMuscles.length > 0) modalMuscles.appendChild(musclesGrid);
 
-    // Instructions — format is always keyed by language code
+    // Instructions — Spanish only
     modalInstr.innerHTML = '';
-    const LANG_LABELS = { en: 'English', es: 'Español', it: 'Italiano', tr: 'Türkçe', ru: 'Русский', zh: '简体中文', hi: 'हिन्दी', pl: 'Polski', ko: '한국어', fr: 'Français' };
-    const langs = ['en', 'es', 'it', 'tr', 'ru', 'zh', 'hi', 'pl', 'ko', 'fr']
-      .map(code => ({ code, steps: ex.instruction_steps?.[code] ?? [] }))
-      .filter(l => l.steps.length > 0);
+    const steps = ex.instruction_steps?.es ?? [];
 
-    if (langs.length > 0) {
+    if (steps.length > 0) {
       const instrLabel = document.createElement('span');
       instrLabel.className = 'modal-instructions-label';
       instrLabel.textContent = 'Instrucciones';
@@ -1275,39 +1370,12 @@
 
       const list = document.createElement('ol');
       list.className = 'instructions-list';
-
-      function renderSteps(steps) {
-        list.innerHTML = '';
-        steps.forEach((step, i) => {
-          const li = document.createElement('li');
-          li.className = 'instruction-step';
-          li.innerHTML = `<span class="step-num">${i + 1}</span><span class="step-text">${step}</span>`;
-          list.appendChild(li);
-        });
-      }
-
-      if (langs.length > 1) {
-        const tabs = document.createElement('div');
-        tabs.className = 'lang-tabs';
-        const tabButtons = langs.map((l, i) => {
-          const btn = document.createElement('button');
-          btn.className = 'lang-tab' + (i === 0 ? ' active' : '');
-          btn.textContent = LANG_LABELS[l.code] ?? l.code;
-          tabs.appendChild(btn);
-          return btn;
-        });
-        modalInstr.appendChild(tabs);
-
-        tabButtons.forEach((btn, i) => {
-          btn.addEventListener('click', () => {
-            tabButtons.forEach(b => b.classList.remove('active'));
-            btn.classList.add('active');
-            renderSteps(langs[i].steps);
-          });
-        });
-      }
-
-      renderSteps(langs[0].steps);
+      steps.forEach((step, i) => {
+        const li = document.createElement('li');
+        li.className = 'instruction-step';
+        li.innerHTML = `<span class="step-num">${i + 1}</span><span class="step-text">${step}</span>`;
+        list.appendChild(li);
+      });
       modalInstr.appendChild(list);
     }
 
@@ -1322,8 +1390,22 @@
     modalGif.src = '';
   }
 
+  // ── Theme ──────────────────────────────────────────
+  function currentTheme() {
+    const attr = document.documentElement.getAttribute('data-theme');
+    if (attr === 'dark' || attr === 'light') return attr;
+    return window.matchMedia('(prefers-color-scheme: dark)').matches ? 'dark' : 'light';
+  }
+
   // ── Events ─────────────────────────────────────────
   function wireEvents() {
+    // Theme toggle
+    themeToggleEl.addEventListener('click', () => {
+      const next = currentTheme() === 'dark' ? 'light' : 'dark';
+      document.documentElement.setAttribute('data-theme', next);
+      try { localStorage.setItem('palestra-theme', next); } catch (e) {}
+    });
+
     // Search
     searchEl.addEventListener('input', debounce(() => {
       state.search = searchEl.value;
