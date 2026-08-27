@@ -1,0 +1,10 @@
+<svg width="64" height="64" viewBox="0 0 512 512" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="Palestra">
+  <rect width="512" height="512" rx="120" fill="#ff4f00"/>
+  <g fill="#ffffff">
+    <rect x="168" y="230" width="176" height="52" rx="18"/>
+    <rect x="132" y="180" width="44" height="152" rx="16"/>
+    <rect x="88"  y="206" width="38" height="100" rx="14" opacity="0.8"/>
+    <rect x="336" y="180" width="44" height="152" rx="16"/>
+    <rect x="386" y="206" width="38" height="100" rx="14" opacity="0.8"/>
+  </g>
+</svg>

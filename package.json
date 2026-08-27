@@ -1,0 +1,9 @@
+{
+  "private": true,
+  "scripts": {
+    "build:icons": "node scripts/build-icons.mjs"
+  },
+  "devDependencies": {
+    "sharp": "^0.35.4"
+  }
+}
