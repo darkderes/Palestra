@@ -30,6 +30,13 @@
     summary { list-style: none; cursor: pointer; }
     summary::-webkit-details-marker { display: none; }
 
+    /* ── Focus ──────────────────────────────────────── */
+    :focus-visible {
+      outline: 2px solid var(--accent);
+      outline-offset: 2px;
+    }
+    :focus:not(:focus-visible) { outline: none; }
+
     /* ── Design Tokens ──────────────────────────────── */
     :root {
       --bg-base:        #f4f4f5;
@@ -180,8 +187,8 @@
       display: flex;
       align-items: center;
       justify-content: center;
-      width: 30px;
-      height: 30px;
+      width: 38px;
+      height: 38px;
       flex-shrink: 0;
       border-radius: var(--radius-sm);
       border: 1px solid var(--border);
@@ -195,7 +202,7 @@
       border-color: var(--border-hover);
     }
 
-    .theme-toggle svg { width: 16px; height: 16px; }
+    .theme-toggle svg { width: 17px; height: 17px; }
     .theme-toggle .icon-sun  { display: none; }
     .theme-toggle .icon-moon { display: block; }
     :root[data-theme="dark"] .theme-toggle .icon-sun  { display: block; }
@@ -237,7 +244,6 @@
       border-radius: var(--radius-md);
       color: var(--text-primary);
       font-size: 13px;
-      outline: none;
       transition: border-color 0.15s;
     }
 
@@ -246,18 +252,22 @@
 
     .search-clear {
       position: absolute;
-      right: 8px;
+      right: 4px;
       top: 50%;
       transform: translateY(-50%);
       color: var(--text-tertiary);
       font-size: 16px;
       line-height: 1;
       display: none;
-      padding: 2px 4px;
+      align-items: center;
+      justify-content: center;
+      width: 32px;
+      height: 32px;
+      border-radius: var(--radius-sm);
     }
 
     .search-clear:hover { color: var(--text-primary); }
-    .search-clear.visible { display: block; }
+    .search-clear.visible { display: flex; }
 
     /* ── Filter Sections ────────────────────────────── */
     .filter-section {
@@ -281,13 +291,14 @@
       padding: 4px 2px 8px;
       display: flex;
       flex-wrap: wrap;
-      gap: 5px;
+      gap: 8px;
     }
 
     .filter-show-more {
       font-size: 11px;
       color: var(--text-secondary);
-      padding: 3px 6px;
+      padding: 3px 10px;
+      min-height: 34px;
       border-radius: 20px;
       border: 1px dashed var(--border-hover);
       transition: all 0.1s;
@@ -302,7 +313,8 @@
     .chip {
       display: inline-flex;
       align-items: center;
-      padding: 4px 10px;
+      padding: 6px 12px;
+      min-height: 34px;
       border-radius: 20px;
       font-size: 12px;
       font-weight: 500;
@@ -372,8 +384,9 @@
     .active-badge {
       display: inline-flex;
       align-items: center;
-      gap: 4px;
-      padding: 3px 8px 3px 10px;
+      gap: 2px;
+      padding: 3px 4px 3px 10px;
+      min-height: 28px;
       background: var(--accent-muted);
       border: 1px solid var(--accent);
       color: var(--accent-text);
@@ -384,7 +397,13 @@
     }
 
     .active-badge-remove {
-      font-size: 13px;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 50%;
+      font-size: 14px;
       line-height: 1;
       color: var(--accent-text);
       opacity: 0.7;
@@ -616,8 +635,8 @@
 
     .modal-close {
       flex-shrink: 0;
-      width: 28px;
-      height: 28px;
+      width: 38px;
+      height: 38px;
       border-radius: 50%;
       background: var(--bg-elevated);
       border: 1px solid var(--border);
@@ -1121,7 +1140,7 @@
   <main class="main-content">
     <div class="results-bar">
       <div class="active-filters" id="active-filters"></div>
-      <span class="results-count" id="results-count"></span>
+      <span class="results-count" id="results-count" role="status" aria-live="polite"></span>
       <button class="top3-toggle" id="top3-toggle" type="button" aria-pressed="false">
         🏆 Top 3 por músculo
       </button>
@@ -1228,6 +1247,9 @@
   const filtersWrapEl        = document.getElementById('filters-wrap');
   const top3ToggleEl         = document.getElementById('top3-toggle');
   const top3ViewEl           = document.getElementById('top3-view');
+  const appShellEl           = document.querySelector('.app-shell');
+  const modalPanelEl         = document.getElementById('modal-panel');
+  let   lastFocusedEl        = null;
 
   // ── Utility ────────────────────────────────────────
   function debounce(fn, ms) {
@@ -1297,9 +1319,38 @@
     });
 
     buildFilterOptions();
+    readURL();
     applyFilters();
 
     if (location.hash === '#top3') setTop3(true);
+  }
+
+  // ── URL State (filters + search in ?query, view mode in #hash) ──
+  const URL_KEYS = ['category', 'equipment', 'target'];
+
+  function readURL() {
+    const p = new URLSearchParams(location.search);
+    state.search = p.get('q') || '';
+    searchEl.value = state.search;
+    searchClearEl.classList.toggle('visible', state.search.length > 0);
+    URL_KEYS.forEach(k => {
+      state.filters[k] = new Set((p.get(k) || '').split(',').filter(Boolean));
+    });
+    document.querySelectorAll('.chip[data-filter]').forEach(c => {
+      if (c.classList.contains('filter-show-more')) return;
+      c.classList.toggle('active', !!state.filters[c.dataset.filter]?.has(c.dataset.value));
+    });
+  }
+
+  function syncURL() {
+    const p = new URLSearchParams();
+    if (state.search) p.set('q', state.search);
+    URL_KEYS.forEach(k => {
+      if (state.filters[k].size) p.set(k, [...state.filters[k]].join(','));
+    });
+    const qs = p.toString();
+    const url = location.pathname + (qs ? '?' + qs : '') + (state.top3 ? '#top3' : '');
+    history.replaceState(null, '', url);
   }
 
   function loadData() {
@@ -1359,7 +1410,7 @@
     if (rest.length > 0) {
       // Hidden chips
       const hiddenWrap = document.createElement('div');
-      hiddenWrap.style.cssText = 'display:none;flex-wrap:wrap;gap:5px;width:100%;';
+      hiddenWrap.style.cssText = 'display:none;flex-wrap:wrap;gap:8px;width:100%;';
       rest.forEach(val => hiddenWrap.appendChild(makeChip(val, filterKey)));
       container.appendChild(hiddenWrap);
 
@@ -1392,7 +1443,7 @@
   }
 
   function applyFilters() {
-    if (state.top3) setTop3(false);
+    if (state.top3) setTop3(false, false);
     const q = state.search.toLowerCase().trim();
     const { category, equipment, target } = state.filters;
 
@@ -1409,6 +1460,7 @@
     updateResultsBar();
     updateActiveBadges();
     updateFiltersToggleCount();
+    syncURL();
   }
 
   function updateFiltersToggleCount() {
@@ -1426,6 +1478,7 @@
     if (slice.length === 0) {
       const empty = document.createElement('div');
       empty.className = 'empty-state';
+      empty.setAttribute('role', 'status');
       empty.innerHTML = '<p>🔍</p><p>No se encontraron ejercicios</p>';
       gridEl.appendChild(empty);
       spinnerEl.classList.remove('visible');
@@ -1588,7 +1641,7 @@
     top3ViewEl.appendChild(frag);
   }
 
-  function setTop3(on) {
+  function setTop3(on, sync = true) {
     state.top3 = on;
     top3ToggleEl.classList.toggle('active', on);
     top3ToggleEl.setAttribute('aria-pressed', String(on));
@@ -1599,6 +1652,7 @@
       if (!top3ViewEl.hasChildNodes()) renderTop3();
       window.scrollTo({ top: 0 });
     }
+    if (sync) syncURL();
   }
 
   // ── Results Bar ────────────────────────────────────
@@ -1732,15 +1786,39 @@
       modalInstr.appendChild(list);
     }
 
+    lastFocusedEl = document.activeElement;
     modalOverlay.classList.add('open');
     document.body.style.overflow = 'hidden';
+    if (appShellEl) appShellEl.inert = true;
     modalClose.focus();
   }
 
   function closeModal() {
+    if (!modalOverlay.classList.contains('open')) return;
     modalOverlay.classList.remove('open');
     document.body.style.overflow = '';
     modalGif.src = '';
+    if (appShellEl) appShellEl.inert = false;
+    if (lastFocusedEl && document.contains(lastFocusedEl)) lastFocusedEl.focus();
+    lastFocusedEl = null;
+  }
+
+  // Keep Tab focus inside the open modal
+  function trapModalFocus(e) {
+    if (e.key !== 'Tab' || !modalOverlay.classList.contains('open')) return;
+    const items = modalPanelEl.querySelectorAll(
+      'a[href], button:not([disabled]), input, [tabindex]:not([tabindex="-1"])'
+    );
+    if (!items.length) { e.preventDefault(); return; }
+    const first = items[0];
+    const last = items[items.length - 1];
+    if (!modalPanelEl.contains(document.activeElement)) {
+      e.preventDefault(); first.focus();
+    } else if (e.shiftKey && document.activeElement === first) {
+      e.preventDefault(); last.focus();
+    } else if (!e.shiftKey && document.activeElement === last) {
+      e.preventDefault(); first.focus();
+    }
   }
 
   // ── Theme ──────────────────────────────────────────
@@ -1850,6 +1928,7 @@
     });
     document.addEventListener('keydown', e => {
       if (e.key === 'Escape') closeModal();
+      else trapModalFocus(e);
     });
 
     // Infinite scroll
@@ -1865,8 +1944,17 @@
   // ── Boot ───────────────────────────────────────────
   wireEvents();
   loadData();
+
+  // Back/forward and manual hash edits — filters/search live in ?query, view in #hash
+  window.addEventListener('popstate', () => {
+    if (!state.exercises.length) return;
+    if (location.hash === '#top3') setTop3(true, false);
+    else { readURL(); applyFilters(); }
+  });
   window.addEventListener('hashchange', () => {
-    if (location.hash === '#top3' && !state.top3) setTop3(true);
+    if (!state.exercises.length) return;
+    if (location.hash === '#top3') setTop3(true, false);
+    else if (state.top3) applyFilters();
   });
 
 </script>
