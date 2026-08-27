@@ -106,7 +106,7 @@ Opening `index.html` straight from the filesystem (`file://`) will not load the 
 La vista **«📋 Mis entrenamientos»** (o el enlace `#log`) permite anotar sesiones de
 entrenamiento:
 
-- **Sesiones** con ejercicios y series (peso / reps / RPE), notas y "repetir última serie".
+- **Sesiones** con ejercicios y series (peso / reps), notas y "repetir última serie".
 - **Plantillas / rutinas** reutilizables: definí una vez los ejercicios y creá sesiones
   precargadas con «Nueva sesión desde plantilla».
 - **«Última vez»**: cada ejercicio muestra tu registro anterior (en el editor y en el modal

@@ -1,6 +1,6 @@
 /* Palestra · registro de entrenamientos — UI.
  *
- * Vista "Mis entrenamientos": sesiones con series (peso/reps/RPE), plantillas
+ * Vista "Mis entrenamientos": sesiones con series (peso/reps), plantillas
  * reutilizables e historial. Persiste vía window.PalestraStore. Resuelve
  * ejercicios vía window.Palestra (definido en app.js). Solo local.
  *
@@ -40,7 +40,7 @@
 
   const data = () => Store.getData();
   const persist = () => Store.save(Store.getData());
-  const emptySet = () => ({ weight: '', reps: '', rpe: '', done: false });
+  const emptySet = () => ({ weight: '', reps: '', done: false });
 
   function exName(id) {
     const ex = window.Palestra && window.Palestra.getExercise(id);
@@ -200,7 +200,6 @@
       el('span', null, '#'),
       el('span', null, 'Peso'),
       el('span', null, 'Reps'),
-      el('span', null, 'RPE'),
       el('span', null, '✓'),
       el('span', null, ''),
     ]);
@@ -251,7 +250,6 @@
         el('span', { class: 'log-set-num' }, si + 1),
         el('input', { type: 'number', inputmode: 'decimal', step: 'any', min: '0', value: set.weight, placeholder: 'kg', 'data-field': 'weight', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} peso` }),
         el('input', { type: 'number', inputmode: 'numeric', step: '1', min: '0', value: set.reps, placeholder: 'reps', 'data-field': 'reps', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} repeticiones` }),
-        el('input', { type: 'number', inputmode: 'decimal', step: '0.5', min: '0', max: '10', value: set.rpe, placeholder: 'RPE', 'data-field': 'rpe', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} RPE` }),
         el('input', { type: 'checkbox', 'data-field': 'done', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} completada`, checked: set.done }),
         el('button', { class: 'log-icon-btn', type: 'button', 'data-act': 'del-set', 'data-ei': ei, 'data-si': si, 'aria-label': `Borrar serie ${si + 1}` }, '✕'),
       ]);
@@ -398,7 +396,7 @@
     if (field === 'session-name' && s) { s.name = t.value; persist(); return; }
     if (field === 'session-note' && s) { s.note = t.value; persist(); return; }
 
-    if ((field === 'weight' || field === 'reps' || field === 'rpe' || field === 'done') && s) {
+    if ((field === 'weight' || field === 'reps' || field === 'done') && s) {
       const ei = Number(t.getAttribute('data-ei'));
       const si = Number(t.getAttribute('data-si'));
       const set = s.entries[ei] && s.entries[ei].sets[si];
@@ -464,7 +462,7 @@
         if (s && s.entries[ei]) {
           const prev = s.entries[ei].sets[s.entries[ei].sets.length - 1];
           s.entries[ei].sets.push(
-            prev ? { weight: prev.weight, reps: '', rpe: '', done: false } : emptySet()
+            prev ? { weight: prev.weight, reps: '', done: false } : emptySet()
           );
           persist();
           render();

@@ -132,7 +132,7 @@
 .log-sets { display: flex; flex-direction: column; gap: 6px; }
 .log-set {
   display: grid;
-  grid-template-columns: 22px 1fr 1fr 1fr 28px 28px;
+  grid-template-columns: 22px 1fr 1fr 28px 28px;
   gap: 6px;
   align-items: center;
 }
@@ -152,7 +152,7 @@
 .log-set.done input[type="number"] { opacity: .55; }
 .log-set-head {
   display: grid;
-  grid-template-columns: 22px 1fr 1fr 1fr 28px 28px;
+  grid-template-columns: 22px 1fr 1fr 28px 28px;
   gap: 6px;
   font-size: 10px;
   font-weight: 700;
@@ -281,6 +281,6 @@
 }
 
 @media (max-width: 480px) {
-  .log-set, .log-set-head { grid-template-columns: 20px 1fr 1fr 1fr 26px 26px; }
+  .log-set, .log-set-head { grid-template-columns: 20px 1fr 1fr 26px 26px; }
   .modal-log-btn { margin-left: 0; }
 }
