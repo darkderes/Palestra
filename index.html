@@ -943,6 +943,94 @@
 
       .card-name { font-size: 11.5px; }
     }
+
+    /* ── Top 3 por músculo ──────────────────────────── */
+    .top3-toggle {
+      display: inline-flex;
+      align-items: center;
+      gap: 6px;
+      padding: 6px 12px;
+      font-size: 12px;
+      font-weight: 600;
+      color: var(--text-secondary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-sm);
+      white-space: nowrap;
+      transition: color .15s, border-color .15s, background .15s;
+    }
+    .top3-toggle:hover { border-color: var(--border-hover); color: var(--text-primary); }
+    .top3-toggle.active {
+      color: #fff;
+      background: var(--accent);
+      border-color: var(--accent);
+    }
+
+    .top3-view { display: none; }
+    .top3-view.visible { display: block; }
+
+    .top3-intro {
+      font-size: 12px;
+      line-height: 1.5;
+      color: var(--text-secondary);
+      background: var(--accent-muted);
+      border: 1px solid var(--border);
+      border-radius: var(--radius-md);
+      padding: 12px 14px;
+      margin-bottom: 20px;
+    }
+
+    .top3-section { margin-bottom: 28px; }
+
+    .top3-section-head {
+      display: flex;
+      align-items: baseline;
+      gap: 8px;
+      margin-bottom: 4px;
+    }
+    .top3-section-title {
+      font-size: 15px;
+      font-weight: 700;
+      color: var(--text-primary);
+      text-transform: capitalize;
+    }
+    .top3-section-sub {
+      font-size: 11px;
+      color: var(--text-tertiary);
+    }
+    .top3-section-note {
+      font-size: 11px;
+      color: var(--text-tertiary);
+      margin-bottom: 10px;
+    }
+
+    .top3-row {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 10px;
+    }
+    @media (max-width: 640px) {
+      .top3-row { grid-template-columns: 1fr; }
+    }
+
+    .top3-item { position: relative; }
+    .top3-item .medal-badge {
+      position: absolute;
+      top: 6px;
+      left: 6px;
+      z-index: 1;
+      display: inline-flex;
+      align-items: center;
+      gap: 3px;
+      padding: 2px 7px 2px 5px;
+      font-size: 11px;
+      font-weight: 700;
+      color: var(--text-primary);
+      background: var(--bg-surface);
+      border: 1px solid var(--border);
+      border-radius: 999px;
+      box-shadow: 0 1px 3px var(--shadow-modal);
+    }
   </style>
 </head>
 <body>
@@ -1009,12 +1097,16 @@
     <div class="results-bar">
       <div class="active-filters" id="active-filters"></div>
       <span class="results-count" id="results-count"></span>
+      <button class="top3-toggle" id="top3-toggle" type="button" aria-pressed="false">
+        🏆 Top 3 por músculo
+      </button>
     </div>
     <div class="grid-wrapper">
       <div class="exercise-grid" id="exercise-grid"></div>
       <div class="load-sentinel" id="load-sentinel">
         <div class="load-spinner" id="load-spinner"></div>
       </div>
+      <div class="top3-view" id="top3-view"></div>
     </div>
   </main>
 </div>
@@ -1050,10 +1142,45 @@
     },
     page: 0,
     pageSize: 60,
+    top3: false,
   };
 
   // Equipment items to show initially (rest behind "show more")
   const EQUIP_INITIAL = 10;
+
+  // ── Top 3 por músculo objetivo ─────────────────────
+  // Selección orientativa a partir de la literatura de electromiografía (EMG)
+  // y biomecánica: se priorizan ejercicios compuestos, con carga libre y rango
+  // completo de movimiento. Los IDs corresponden a data/exercises.json.
+  const TOP3 = [
+    { target: 'pectorals',           ids: ['0025', '0047', '0251'] },
+    { target: 'lats',                ids: ['0652', '2330', '0027'] },
+    { target: 'upper back',          ids: ['0027', '0180', '1351'] },
+    { target: 'delts',               ids: ['0091', '0334', '0383'] },
+    { target: 'traps',               ids: ['0095', '0406', '0548'] },
+    { target: 'biceps',              ids: ['0031', '0318', '0070'] },
+    { target: 'triceps',             ids: ['1755', '0060', '0200'] },
+    { target: 'forearms',            ids: ['0126', '0082', '0364'] },
+    { target: 'quads',               ids: ['2287', '1760', '0585'],
+      note: 'En el dataset la sentadilla con barra y la prensa con barra están etiquetadas como «glúteos»; aquí solo aparecen los ejercicios marcados como cuádriceps.' },
+    { target: 'hamstrings',          ids: ['0586', '0116', '3193'] },
+    { target: 'glutes',              ids: ['0043', '0085', '1409'],
+      note: 'La sentadilla profunda y el peso muerto rumano también cargan de forma intensa cuádriceps e isquiotibiales.' },
+    { target: 'calves',              ids: ['1372', '0594', '0284'] },
+    { target: 'abs',                 ids: ['0472', '0832', '0084'] },
+    { target: 'spine',               ids: ['0489', '0835', '0573'],
+      note: 'El dataset etiqueta los "buenos días" y el peso muerto como isquiotibiales/glúteos; aquí se listan las extensiones lumbares disponibles.' },
+    { target: 'adductors',           ids: ['0168', '0598', '1775'],
+      note: 'Datos limitados en el dataset para este músculo.' },
+    { target: 'abductors',           ids: ['0597', '3006', '0710'],
+      note: 'Datos limitados en el dataset para este músculo.' },
+    { target: 'serratus anterior',   ids: ['0050', '3011', '3021'],
+      note: 'Datos limitados en el dataset para este músculo.' },
+    { target: 'levator scapulae',    ids: ['1403', '0716'],
+      note: 'El dataset solo incluye estiramientos para este músculo.' },
+    { target: 'cardiovascular system', ids: ['1160', '2612', '0685'],
+      note: 'Ranking por demanda cardiorrespiratoria, no por activación muscular (EMG).' },
+  ];
 
   // ── DOM Refs ───────────────────────────────────────
   const gridEl        = document.getElementById('exercise-grid');
@@ -1074,6 +1201,8 @@
   const filtersToggleEl      = document.getElementById('filters-toggle');
   const filtersToggleCountEl = document.getElementById('filters-toggle-count');
   const filtersWrapEl        = document.getElementById('filters-wrap');
+  const top3ToggleEl         = document.getElementById('top3-toggle');
+  const top3ViewEl           = document.getElementById('top3-view');
 
   // ── Utility ────────────────────────────────────────
   function debounce(fn, ms) {
@@ -1203,6 +1332,7 @@
   }
 
   function applyFilters() {
+    if (state.top3) setTop3(false);
     const q = state.search.toLowerCase().trim();
     const { category, equipment, target } = state.filters;
 
@@ -1332,6 +1462,80 @@
       frag.appendChild(card);
     }
     gridEl.appendChild(frag);
+  }
+
+  // ── Top 3 View ─────────────────────────────────────
+  const MEDALS = ['🥇', '🥈', '🥉'];
+  let _exById = null;
+  function exById(id) {
+    if (!_exById) _exById = new Map(state.exercises.map(e => [e.id, e]));
+    return _exById.get(id);
+  }
+
+  function renderTop3() {
+    top3ViewEl.innerHTML = '';
+
+    const intro = document.createElement('p');
+    intro.className = 'top3-intro';
+    intro.textContent = 'Selección orientativa basada en la literatura de electromiografía (EMG) y '
+      + 'biomecánica: se priorizan ejercicios compuestos, con carga libre y rango completo de '
+      + 'movimiento. No sustituye la individualización del entrenamiento. Al usar un filtro '
+      + 'o la búsqueda volverás a la lista completa.';
+    top3ViewEl.appendChild(intro);
+
+    const frag = document.createDocumentFragment();
+
+    TOP3.forEach(({ target, ids, note }) => {
+      const exs = ids.map(exById).filter(Boolean);
+      if (exs.length === 0) return;
+
+      const section = document.createElement('section');
+      section.className = 'top3-section';
+
+      const head = document.createElement('div');
+      head.className = 'top3-section-head';
+      head.innerHTML = `<span class="top3-section-title">${tr(target)}</span>`
+        + `<span class="top3-section-sub">${target}</span>`;
+      section.appendChild(head);
+
+      if (note) {
+        const noteEl = document.createElement('p');
+        noteEl.className = 'top3-section-note';
+        noteEl.textContent = note;
+        section.appendChild(noteEl);
+      }
+
+      const row = document.createElement('div');
+      row.className = 'top3-row';
+      exs.forEach((ex, i) => {
+        const item = document.createElement('div');
+        item.className = 'top3-item';
+        const card = createCard(ex);
+        const badge = document.createElement('span');
+        badge.className = 'medal-badge';
+        badge.textContent = `${MEDALS[i] || ''} ${i + 1}º`;
+        card.querySelector('.card-media').appendChild(badge);
+        item.appendChild(card);
+        row.appendChild(item);
+      });
+      section.appendChild(row);
+      frag.appendChild(section);
+    });
+
+    top3ViewEl.appendChild(frag);
+  }
+
+  function setTop3(on) {
+    state.top3 = on;
+    top3ToggleEl.classList.toggle('active', on);
+    top3ToggleEl.setAttribute('aria-pressed', String(on));
+    top3ViewEl.classList.toggle('visible', on);
+    gridEl.style.display   = on ? 'none' : '';
+    sentinelEl.style.display = on ? 'none' : '';
+    if (on) {
+      if (!top3ViewEl.hasChildNodes()) renderTop3();
+      window.scrollTo({ top: 0 });
+    }
   }
 
   // ── Results Bar ────────────────────────────────────
@@ -1492,6 +1696,21 @@
       try { localStorage.setItem('palestra-theme', next); } catch (e) {}
     });
 
+    // Top 3 por músculo toggle
+    top3ToggleEl.addEventListener('click', () => setTop3(!state.top3));
+
+    // Top 3 view: card hover → load GIF, card click → modal
+    top3ViewEl.addEventListener('mouseover', e => {
+      const card = e.target.closest('.exercise-card');
+      if (!card) return;
+      const gif = card.querySelector('.card-gif');
+      if (gif && gif.dataset.src && !gif.src) gif.src = gif.dataset.src;
+    });
+    top3ViewEl.addEventListener('click', e => {
+      const card = e.target.closest('.exercise-card');
+      if (card) openModal(card.dataset.id);
+    });
+
     // Filters collapse (mobile)
     filtersToggleEl.addEventListener('click', () => {
       const open = filtersWrapEl.classList.toggle('open');
@@ -1571,6 +1790,10 @@
 
   // ── Boot ───────────────────────────────────────────
   init();
+  if (location.hash === '#top3') setTop3(true);
+  window.addEventListener('hashchange', () => {
+    if (location.hash === '#top3' && !state.top3) setTop3(true);
+  });
 
 </script>
 </body>
