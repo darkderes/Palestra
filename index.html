@@ -300,6 +300,15 @@
       color: var(--accent);
     }
 
+    /* ── Filters wrap / toggle ──────────────────────── */
+    .filters-wrap {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+    }
+
+    .filters-toggle { display: none; }
+
     /* ── Main Content ───────────────────────────────── */
     .main-content {
       overflow-y: auto;
@@ -819,6 +828,54 @@
 
       .filter-section { width: 100%; }
 
+      /* Collapsible filters — save vertical space */
+      .filters-toggle {
+        display: flex;
+        align-items: center;
+        gap: 6px;
+        width: 100%;
+        padding: 8px 10px;
+        border-radius: var(--radius-md);
+        border: 1px solid var(--border);
+        background: var(--bg-elevated);
+        color: var(--text-secondary);
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.07em;
+        text-transform: uppercase;
+      }
+
+      .filters-toggle-count {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-width: 16px;
+        height: 16px;
+        padding: 0 4px;
+        border-radius: 8px;
+        background: var(--accent);
+        color: #fff;
+        font-size: 10px;
+        letter-spacing: 0;
+      }
+      .filters-toggle-count[hidden] { display: none; }
+
+      .filters-toggle-chevron {
+        width: 14px;
+        height: 14px;
+        margin-left: auto;
+        transition: transform 0.15s ease;
+      }
+      .filters-toggle[aria-expanded="true"] .filters-toggle-chevron { transform: rotate(180deg); }
+
+      .filters-wrap {
+        display: none;
+        margin-top: 8px;
+      }
+      .filters-wrap.open { display: flex; }
+
+      .filter-summary { padding: 6px 4px; }
+
       .filter-options {
         overflow-x: auto;
         flex-wrap: nowrap;
@@ -909,22 +966,33 @@
         <button class="search-clear" id="search-clear" aria-label="Limpiar búsqueda">×</button>
       </div>
 
-      <!-- Category filter -->
-      <div class="filter-section">
-        <div class="filter-summary">Categoría</div>
-        <div class="filter-options" id="category-chips"></div>
-      </div>
+      <!-- Filters toggle (mobile only) -->
+      <button class="filters-toggle" id="filters-toggle" type="button" aria-expanded="false" aria-controls="filters-wrap">
+        <span>Filtros</span>
+        <span class="filters-toggle-count" id="filters-toggle-count" hidden></span>
+        <svg class="filters-toggle-chevron" viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <path d="M4 6l4 4 4-4"/>
+        </svg>
+      </button>
 
-      <!-- Equipment filter -->
-      <div class="filter-section">
-        <div class="filter-summary">Equipamiento</div>
-        <div class="filter-options" id="equipment-chips"></div>
-      </div>
+      <div class="filters-wrap" id="filters-wrap">
+        <!-- Category filter -->
+        <div class="filter-section">
+          <div class="filter-summary">Categoría</div>
+          <div class="filter-options" id="category-chips"></div>
+        </div>
 
-      <!-- Target filter -->
-      <div class="filter-section">
-        <div class="filter-summary">Músculo objetivo</div>
-        <div class="filter-options" id="target-chips"></div>
+        <!-- Equipment filter -->
+        <div class="filter-section">
+          <div class="filter-summary">Equipamiento</div>
+          <div class="filter-options" id="equipment-chips"></div>
+        </div>
+
+        <!-- Target filter -->
+        <div class="filter-section">
+          <div class="filter-summary">Músculo objetivo</div>
+          <div class="filter-options" id="target-chips"></div>
+        </div>
       </div>
     </div>
   </aside>
@@ -996,6 +1064,9 @@
   const modalInstr    = document.getElementById('modal-instructions');
   const modalClose    = document.getElementById('modal-close');
   const themeToggleEl = document.getElementById('theme-toggle');
+  const filtersToggleEl      = document.getElementById('filters-toggle');
+  const filtersToggleCountEl = document.getElementById('filters-toggle-count');
+  const filtersWrapEl        = document.getElementById('filters-wrap');
 
   // ── Utility ────────────────────────────────────────
   function debounce(fn, ms) {
@@ -1140,6 +1211,14 @@
     renderGrid();
     updateResultsBar();
     updateActiveBadges();
+    updateFiltersToggleCount();
+  }
+
+  function updateFiltersToggleCount() {
+    const { category, equipment, target } = state.filters;
+    const n = category.size + equipment.size + target.size;
+    filtersToggleCountEl.textContent = n;
+    filtersToggleCountEl.hidden = n === 0;
   }
 
   // ── Rendering ──────────────────────────────────────
@@ -1404,6 +1483,12 @@
       const next = currentTheme() === 'dark' ? 'light' : 'dark';
       document.documentElement.setAttribute('data-theme', next);
       try { localStorage.setItem('palestra-theme', next); } catch (e) {}
+    });
+
+    // Filters collapse (mobile)
+    filtersToggleEl.addEventListener('click', () => {
+      const open = filtersWrapEl.classList.toggle('open');
+      filtersToggleEl.setAttribute('aria-expanded', String(open));
     });
 
     // Search
