@@ -78,17 +78,26 @@ Each exercise entry contains:
 
 ## 🖥️ Interactive Browser & Developer Setup
 
-This repository includes two ready-to-use HTML tools — no server required, just open in a browser.
+This repository includes two ready-to-use HTML tools.
 
 > **Note:** the browser displays each exercise's 180×180 thumbnail and animation GIF alongside its metadata and instructions.
 
 ### `index.html` — Exercise Browser
 
-A fully client-side exercise explorer with:
+A client-side exercise explorer with:
 - Live search across all 1,324 exercises
 - Filter by category, equipment, and target muscle
 - Infinite scroll grid
-- Click any card to see full details and instructions in English, Spanish, Italian, Turkish, Russian, Chinese, Hindi, Polish, Korean, or French
+- Click (or focus + <kbd>Enter</kbd>) any card to see full details and step-by-step instructions in Spanish
+
+It loads its data at runtime from `data/exercises.min.json`, so it must be **served over HTTP** — via GitHub Pages, or locally:
+
+```bash
+npm run build:data      # regenerate data/exercises.min.json from data/exercises.json
+python -m http.server    # then open http://localhost:8000/
+```
+
+Opening `index.html` straight from the filesystem (`file://`) will not load the dataset.
 
 ### `setup.html` — Developer Setup Guide
 
@@ -106,10 +115,14 @@ A step-by-step guide for integrating the dataset into your own application:
 exercises-dataset/
 ├── data/
 │   ├── exercises.json        # Full dataset — 1,324 exercise records (JSON array)
+│   ├── exercises.min.json    # Trimmed subset index.html loads at runtime (built)
 │   └── exercises.schema.json # JSON Schema (2020-12) describing every record
 ├── images/                  # 1,324 × 180×180 thumbnails  (© Gym visual)
 ├── videos/                  # 1,324 × 180×180 animation GIFs  (© Gym visual)
-├── index.html               # Interactive exercise browser (client-side, no server needed)
+├── scripts/
+│   ├── build-data.mjs        # Regenerates data/exercises.min.json
+│   └── build-icons.mjs       # Rasterizes favicon.svg
+├── index.html               # Interactive exercise browser (served over HTTP)
 ├── setup.html               # Developer setup guide (DB import + API integration)
 ├── NOTICE.md                # Media attribution & license terms
 └── README.md
@@ -120,7 +133,9 @@ exercises-dataset/
 - **`data/exercises.json`** — The primary data file. A JSON array of 1,324 exercise objects with all metadata. `image` / `gif_url` point to the local 180×180 assets, and each record carries an `attribution` field; `media_id` holds the original media reference id.
 - **`data/exercises.schema.json`** — A [JSON Schema](https://json-schema.org/) (Draft 2020-12) that formally describes every field, its type and constraints. Use it to validate the dataset or your own additions with any standard JSON Schema validator.
 - **`images/`, `videos/`** — 180×180 thumbnails and animation GIFs (© [Gym visual](https://gymvisual.com/), used with permission).
-- **`index.html`** — Standalone exercise browser. Open directly in any modern browser.
+- **`index.html`** — Exercise browser. Loads `data/exercises.min.json` via `fetch`, so serve it over HTTP (GitHub Pages, or `python -m http.server`).
+- **`data/exercises.min.json`** — Spanish-only subset with just the fields the browser renders (~1 MB vs. ~16 MB when it was inlined). Rebuild with `npm run build:data`.
+- **`scripts/build-data.mjs`** — Emits `data/exercises.min.json` from `data/exercises.json`.
 - **`setup.html`** — Developer guide for DB setup, API integration, and LLM-assisted backend generation.
 - **`LICENSE`, `NOTICE.md`** — MIT (code/data) + the Gym visual media terms.
 
