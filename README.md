@@ -107,11 +107,15 @@ La vista **«📋 Mis entrenamientos»** (o el enlace `#log`) permite anotar ses
 entrenamiento:
 
 - **Sesiones** con ejercicios y series (peso / reps), notas y "repetir última serie".
+  Marcá cada serie como hecha (✓): el editor y el historial muestran completadas / total.
+- **Buscador de ejercicios inline**: agregá ejercicios sin salir del editor, con
+  favoritos (★) y "recientes" tomados del historial.
 - **Plantillas / rutinas** reutilizables: definí una vez los ejercicios y creá sesiones
   precargadas con «Nueva sesión desde plantilla».
 - **«Última vez»**: cada ejercicio muestra tu registro anterior (en el editor y en el modal
   de detalle) como referencia.
-- **Historial** de sesiones con volumen total y nº de series.
+- **Historial** de sesiones con volumen total y nº de series. Las sesiones sin datos no
+  se guardan.
 
 Todo se guarda **solo en este navegador** (`localStorage`, clave `palestra-log-v1`) — no hay
 servidor ni sincronización. Usá **Exportar / Importar** (JSON) como copia de seguridad o para

@@ -39,8 +39,36 @@
   }
 
   const data = () => Store.getData();
-  const persist = () => Store.save(Store.getData());
   const emptySet = () => ({ weight: '', reps: '', done: false });
+
+  const UI = window.PalestraUI || null;
+  const reducedMotion = () =>
+    UI ? UI.reducedMotion()
+      : window.matchMedia && matchMedia('(prefers-reduced-motion: reduce)').matches;
+  const scrollBehavior = () => (reducedMotion() ? 'auto' : 'smooth');
+  const toast = (msg) => { if (UI) UI.toast(msg); };
+
+  // Chip "Guardado" en la cabecera del editor. Se llama tras cada persistencia
+  // (blur de peso/reps, toggle ✓, agregar/borrar serie). Nodo estable: sobrevive
+  // a los updates quirúrgicos porque vive fuera de .log-sets.
+  let savedTimer = null;
+  function flashSaved(ok) {
+    const chip = view.querySelector('[data-saved]');
+    if (!chip) return;
+    chip.hidden = false;
+    chip.textContent = ok === false ? 'No se pudo guardar' : 'Guardado';
+    chip.classList.toggle('error', ok === false);
+    chip.classList.add('show');
+    clearTimeout(savedTimer);
+    savedTimer = setTimeout(() => chip.classList.remove('show'), 1400);
+    if (ok === false) toast('No se pudo guardar. Exportá tus datos por las dudas.');
+  }
+
+  const persist = () => {
+    const ok = Store.save(Store.getData());
+    flashSaved(ok);
+    return ok;
+  };
 
   function exName(id) {
     const ex = window.Palestra && window.Palestra.getExercise(id);
@@ -69,28 +97,38 @@
   function fmtSets(sets) {
     const v = (sets || []).filter((s) => s.reps !== '' && s.reps != null);
     if (!v.length) return '—';
+    const doneAll = v.every((s) => s.done) ? ' ✓' : '';
     const same = v.every((s) => s.weight === v[0].weight && s.reps === v[0].reps);
     if (same) {
-      return `${v.length}×${v[0].reps}${v[0].weight !== '' ? ` @ ${v[0].weight} kg` : ''}`;
+      return `${v.length}×${v[0].reps}${v[0].weight !== '' ? ` @ ${v[0].weight} kg` : ''}${doneAll}`;
     }
-    return v.map((s) => `${s.weight !== '' ? s.weight : '–'}×${s.reps}`).join(', ');
+    return v.map((s) => `${s.weight !== '' ? s.weight : '–'}×${s.reps}`).join(', ') + doneAll;
   }
 
   function statLabel(st) {
-    const n = st.count === 1 ? '1 serie' : `${st.count} series`;
+    const n =
+      st.done > 0 && st.done < st.count
+        ? `${st.done}/${st.count} series`
+        : st.count === 1
+        ? '1 serie'
+        : `${st.count} series`;
     return `${n} · ${st.vol} kg`;
   }
 
   function sessionVolume(s) {
     let vol = 0;
     let count = 0;
+    let done = 0;
     (s.entries || []).forEach((e) =>
       (e.sets || []).forEach((set) => {
         if (set.weight !== '' && set.reps !== '') vol += Number(set.weight) * Number(set.reps);
-        if (set.reps !== '') count += 1;
+        if (set.reps !== '') {
+          count += 1;
+          if (set.done) done += 1;
+        }
       })
     );
-    return { vol: Math.round(vol), count };
+    return { vol: Math.round(vol), count, done };
   }
 
   // ── Acciones de dominio ──────────────────────────────
@@ -131,7 +169,7 @@
     if (window.Palestra && window.Palestra.showLog) window.Palestra.showLog(true);
     render();
     const node = view.querySelector(`[data-entry="${cssEscape(exerciseId)}"]`);
-    if (node) node.scrollIntoView({ behavior: 'smooth', block: 'center' });
+    if (node) node.scrollIntoView({ behavior: scrollBehavior(), block: 'center' });
   }
 
   function cssEscape(s) {
@@ -150,6 +188,8 @@
 
   // ── Render ───────────────────────────────────────────
   function render() {
+    Store.pruneEmptySessions(activeSessionId);
+    closePicker();
     view.textContent = '';
     view.appendChild(renderHeader());
 
@@ -215,12 +255,13 @@
       }),
       el('span', { class: 'log-date' }, s.date),
       el('span', { class: 'log-editor-stats', 'data-stats': '1' }, statLabel(stats)),
+      el('span', { class: 'log-saved', 'data-saved': '1', hidden: true, 'aria-live': 'polite', role: 'status' }, ''),
     ]);
 
     const entries = (s.entries || []).map((entry, ei) => renderEntry(s, entry, ei));
 
     const foot = el('div', { class: 'log-entry-actions' }, [
-      el('button', { class: 'log-btn', type: 'button', 'data-act': 'add-exercise' }, '＋ ejercicio'),
+      el('button', { class: 'log-btn', type: 'button', 'data-act': 'add-exercise', 'aria-expanded': 'false' }, '＋ ejercicio'),
       el('button', { class: 'log-btn', type: 'button', 'data-act': 'finish-session' }, 'Finalizar'),
       el('button', { class: 'log-btn danger', type: 'button', 'data-act': 'del-session', 'data-session': s.id }, 'Borrar sesión'),
     ]);
@@ -232,8 +273,20 @@
         placeholder: 'Notas de la sesión…', 'data-field': 'session-note',
         'aria-label': 'Notas de la sesión',
       }),
-      ...entries,
+      el('div', { class: 'log-entries', 'data-entries': '1' }, entries),
       foot,
+      el('div', { 'data-picker-mount': '1' }),
+    ]);
+  }
+
+  // Fila de serie. Extraída para reusar en los updates quirúrgicos (appendSetRow).
+  function makeSetRow(set, ei, si) {
+    return el('div', { class: 'log-set' + (set.done ? ' done' : '') }, [
+      el('span', { class: 'log-set-num' }, si + 1),
+      el('input', { type: 'number', inputmode: 'decimal', step: 'any', min: '0', enterkeyhint: 'next', value: set.weight, placeholder: 'kg', 'data-field': 'weight', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} peso` }),
+      el('input', { type: 'number', inputmode: 'numeric', step: '1', min: '0', enterkeyhint: 'next', value: set.reps, placeholder: 'reps', 'data-field': 'reps', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} repeticiones` }),
+      el('input', { type: 'checkbox', 'data-field': 'done', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} completada`, checked: set.done }),
+      el('button', { class: 'log-icon-btn', type: 'button', 'data-act': 'del-set', 'data-ei': ei, 'data-si': si, 'aria-label': `Borrar serie ${si + 1}` }, '✕'),
     ]);
   }
 
@@ -245,20 +298,17 @@
         ])
       : el('div', { class: 'log-last' }, 'Sin registros previos');
 
-    const sets = (entry.sets || []).map((set, si) => {
-      const row = el('div', { class: 'log-set' + (set.done ? ' done' : '') }, [
-        el('span', { class: 'log-set-num' }, si + 1),
-        el('input', { type: 'number', inputmode: 'decimal', step: 'any', min: '0', value: set.weight, placeholder: 'kg', 'data-field': 'weight', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} peso` }),
-        el('input', { type: 'number', inputmode: 'numeric', step: '1', min: '0', value: set.reps, placeholder: 'reps', 'data-field': 'reps', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} repeticiones` }),
-        el('input', { type: 'checkbox', 'data-field': 'done', 'data-ei': ei, 'data-si': si, 'aria-label': `Serie ${si + 1} completada`, checked: set.done }),
-        el('button', { class: 'log-icon-btn', type: 'button', 'data-act': 'del-set', 'data-ei': ei, 'data-si': si, 'aria-label': `Borrar serie ${si + 1}` }, '✕'),
-      ]);
-      return row;
-    });
+    const fav = Store.isFavorite(entry.exerciseId);
+    const sets = (entry.sets || []).map((set, si) => makeSetRow(set, ei, si));
 
-    return el('div', { class: 'log-entry', 'data-entry': entry.exerciseId }, [
+    return el('div', { class: 'log-entry', 'data-entry': entry.exerciseId, 'data-ei': ei }, [
       el('div', { class: 'log-entry-head' }, [
         el('span', { class: 'log-entry-name' }, exName(entry.exerciseId)),
+        el('button', {
+          class: 'log-fav-btn' + (fav ? ' on' : ''), type: 'button', 'data-act': 'fav-entry',
+          'data-ex': entry.exerciseId, 'aria-pressed': String(fav),
+          'aria-label': fav ? 'Quitar de favoritos' : 'Marcar como favorito',
+        }, fav ? '★' : '☆'),
         el('button', { class: 'log-icon-btn', type: 'button', 'data-act': 'del-entry', 'data-ei': ei, 'aria-label': 'Quitar ejercicio' }, '✕'),
       ]),
       lastLine,
@@ -323,7 +373,7 @@
       el('div', { class: 'log-section-title' }, 'Historial'),
     ]);
     const sessions = data().sessions
-      .filter((s) => s.id !== activeSessionId)
+      .filter((s) => s.id !== activeSessionId && Store.sessionHasData(s))
       .sort((a, b) => String(b.date).localeCompare(String(a.date)) || String(b.id).localeCompare(String(a.id)));
 
     if (!sessions.length) {
@@ -356,13 +406,221 @@
     return wrap;
   }
 
-  // ── Eventos ──────────────────────────────────────────
+  // ── Updates quirúrgicos del editor ───────────────────
+  // Evitan el render() completo (que borra el DOM y pierde el foco / cierra el
+  // teclado en móvil) para las acciones del "hot path": agregar/borrar/repetir
+  // serie. render() sigue siendo el default para todo lo estructural.
   function updateStats() {
     const s = curSession();
     if (!s) return;
     const st = sessionVolume(s);
     const node = view.querySelector('[data-stats]');
     if (node) node.textContent = statLabel(st);
+  }
+
+  function entryNode(ei) {
+    return view.querySelector(`.log-entry[data-ei="${ei}"]`);
+  }
+  function setsContainer(ei) {
+    const node = entryNode(ei);
+    return node ? node.querySelector('.log-sets') : null;
+  }
+  // Reescribe números de serie y data-si tras un splice.
+  function renumberSets(ei) {
+    const cont = setsContainer(ei);
+    if (!cont) return;
+    [...cont.children].forEach((row, si) => {
+      const numEl = row.querySelector('.log-set-num');
+      if (numEl) numEl.textContent = si + 1;
+      row.querySelectorAll('[data-si]').forEach((n) => n.setAttribute('data-si', si));
+      row.querySelectorAll('[aria-label]').forEach((n) => {
+        n.setAttribute('aria-label', n.getAttribute('aria-label').replace(/(serie )\d+/i, `$1${si + 1}`));
+      });
+    });
+  }
+  function focusSet(ei, si, field = 'weight') {
+    const inp = view.querySelector(
+      `.log-entry[data-ei="${ei}"] .log-set [data-field="${field}"][data-si="${si}"]`
+    );
+    if (inp) { inp.focus(); if (inp.select) inp.select(); }
+  }
+  // add-set / repeat-set: el caller ya pusheó la serie al modelo.
+  function appendSetRow(ei) {
+    const s = curSession();
+    const cont = setsContainer(ei);
+    if (!s || !s.entries[ei] || !cont) return render();
+    const list = s.entries[ei].sets;
+    const si = list.length - 1;
+    cont.appendChild(makeSetRow(list[si], ei, si));
+    updateStats();
+    focusSet(ei, si, 'weight');
+  }
+  function removeSetRow(ei, si) {
+    const s = curSession();
+    const cont = setsContainer(ei);
+    if (!s || !s.entries[ei] || !cont) return render();
+    if (cont.children[si]) cont.children[si].remove();
+    if (!s.entries[ei].sets.length) {
+      s.entries[ei].sets.push(emptySet());
+      cont.appendChild(makeSetRow(s.entries[ei].sets[0], ei, 0));
+    }
+    renumberSets(ei);
+    updateStats();
+  }
+  // Nuevo ejercicio agregado desde el buscador inline: append sin teardown.
+  function appendEntryNode(exerciseId) {
+    const s = curSession();
+    const entriesWrap = view.querySelector('[data-entries]');
+    if (!s || !entriesWrap) return render();
+    const ei = s.entries.length - 1; // el caller ya lo pusheó
+    entriesWrap.appendChild(renderEntry(s, s.entries[ei], ei));
+    updateStats();
+    const node = entryNode(ei);
+    if (node) node.scrollIntoView({ behavior: scrollBehavior(), block: 'nearest' });
+  }
+
+  // ── Buscador de ejercicios inline ────────────────────
+  // Panel colapsable dentro del editor. Reemplaza el salto a la grilla de 1300
+  // ejercicios. El link "catálogo completo" conserva ese camino como fallback.
+  let pickerDebounce = null;
+
+  function pickerMount() {
+    return view.querySelector('[data-picker-mount]');
+  }
+
+  function closePicker() {
+    const mount = pickerMount();
+    if (mount) mount.textContent = '';
+    const btn = view.querySelector('[data-act="add-exercise"]');
+    if (btn) btn.setAttribute('aria-expanded', 'false');
+    clearTimeout(pickerDebounce);
+  }
+
+  function openPicker() {
+    const mount = pickerMount();
+    if (!mount) return;
+    if (mount.firstChild) { closePicker(); return; } // toggle
+    const btn = view.querySelector('[data-act="add-exercise"]');
+    if (btn) btn.setAttribute('aria-expanded', 'true');
+
+    const input = el('input', {
+      class: 'log-picker-search', type: 'search', enterkeyhint: 'search',
+      placeholder: 'Buscar ejercicio…', 'aria-label': 'Buscar ejercicio',
+      autocomplete: 'off', autocapitalize: 'off', spellcheck: 'false',
+    });
+    const list = el('div', { class: 'log-picker-list', 'data-picker-list': '1' });
+    const foot = el('button', {
+      class: 'log-picker-catalog', type: 'button', 'data-act': 'picker-catalog',
+    }, 'Buscar en el catálogo completo →');
+
+    const panel = el('div', { class: 'log-picker' }, [input, list, foot]);
+    mount.appendChild(panel);
+
+    input.addEventListener('input', () => {
+      clearTimeout(pickerDebounce);
+      pickerDebounce = setTimeout(() => renderPickerResults(input.value), 120);
+    });
+    list.addEventListener('click', onPickerListClick);
+
+    renderPickerResults('');
+    if (!reducedMotion()) panel.scrollIntoView({ behavior: 'smooth', block: 'nearest' });
+    input.focus();
+  }
+
+  function pickerItem(ex) {
+    const fav = Store.isFavorite(ex.id);
+    return el('div', { class: 'log-picker-row' }, [
+      el('button', { class: 'log-picker-item', type: 'button', 'data-pick': ex.id }, [
+        el('span', { class: 'name' }, ex.name),
+        ex.equipment ? el('span', { class: 'equip' }, ex.equipment) : null,
+      ]),
+      el('button', {
+        class: 'log-picker-fav' + (fav ? ' on' : ''), type: 'button', 'data-fav': ex.id,
+        'aria-pressed': String(fav),
+        'aria-label': fav ? 'Quitar de favoritos' : 'Marcar como favorito',
+      }, fav ? '★' : '☆'),
+    ]);
+  }
+
+  function renderPickerResults(query) {
+    const list = view.querySelector('[data-picker-list]');
+    if (!list) return;
+    const P = window.Palestra;
+    const all = P && P.exercises ? P.exercises : [];
+    const s = curSession();
+    const have = new Set((s && s.entries || []).map((e) => e.exerciseId));
+    const resolve = (id) => (P && P.getExercise(id)) || null;
+    list.textContent = '';
+
+    if (!all.length) {
+      list.appendChild(el('div', { class: 'log-picker-empty' }, 'Cargando ejercicios…'));
+      return;
+    }
+
+    const q = String(query || '').toLowerCase().trim();
+    if (!q) {
+      const favs = Store.favorites.map(resolve).filter((x) => x && !have.has(x.id));
+      const recents = Store.recentExercises(8, [...have, ...favs.map((x) => x.id)])
+        .map(resolve).filter(Boolean);
+      if (favs.length) {
+        list.appendChild(el('div', { class: 'log-picker-group' }, 'Favoritos'));
+        favs.forEach((ex) => list.appendChild(pickerItem(ex)));
+      }
+      if (recents.length) {
+        list.appendChild(el('div', { class: 'log-picker-group' }, 'Recientes'));
+        recents.forEach((ex) => list.appendChild(pickerItem(ex)));
+      }
+      if (!favs.length && !recents.length) {
+        list.appendChild(el('div', { class: 'log-picker-empty' }, 'Escribí para buscar un ejercicio.'));
+      }
+      return;
+    }
+
+    const hits = all
+      .filter((ex) => !have.has(ex.id) && (ex._idx ? ex._idx.includes(q) : ex.name.toLowerCase().includes(q)))
+      .slice(0, 20);
+    if (!hits.length) {
+      list.appendChild(el('div', { class: 'log-picker-empty' }, 'Sin resultados.'));
+      return;
+    }
+    hits.forEach((ex) => list.appendChild(pickerItem(ex)));
+  }
+
+  function onPickerListClick(e) {
+    const favBtn = e.target.closest('[data-fav]');
+    if (favBtn) {
+      const id = favBtn.getAttribute('data-fav');
+      const now = Store.toggleFavorite(id);
+      toast(now ? 'Agregado a favoritos' : 'Quitado de favoritos');
+      const input = view.querySelector('.log-picker-search');
+      renderPickerResults(input ? input.value : '');
+      syncFavButtons(id);
+      return;
+    }
+    const pickBtn = e.target.closest('[data-pick]');
+    if (!pickBtn) return;
+    const id = pickBtn.getAttribute('data-pick');
+    const s = curSession();
+    if (!s) return;
+    if (!s.entries.some((x) => x.exerciseId === id)) {
+      s.entries.push({ exerciseId: id, note: '', sets: [emptySet()] });
+      persist();
+      appendEntryNode(id);
+    }
+    const input = view.querySelector('.log-picker-search');
+    if (input) { input.value = ''; input.focus(); }
+    renderPickerResults('');
+  }
+
+  // Sincroniza el estado ★/☆ de un ejercicio en la cabecera del entry (si está montado).
+  function syncFavButtons(id) {
+    const fav = Store.isFavorite(id);
+    view.querySelectorAll(`[data-act="fav-entry"][data-ex="${cssEscape(id)}"]`).forEach((b) => {
+      b.classList.toggle('on', fav);
+      b.textContent = fav ? '★' : '☆';
+      b.setAttribute('aria-pressed', String(fav));
+      b.setAttribute('aria-label', fav ? 'Quitar de favoritos' : 'Marcar como favorito');
+    });
   }
 
   function onChange(e) {
@@ -383,7 +641,7 @@
         'Aceptar = combinar con tus datos actuales.\nCancelar = reemplazar todo por el archivo.'
       );
       Store.importJSON(file, merge ? 'merge' : 'replace')
-        .then(() => { activeSessionId = null; render(); })
+        .then(() => { activeSessionId = null; render(); toast('Datos importados'); })
         .catch((err) => window.alert('No se pudo importar: ' + err.message));
       t.value = '';
       return;
@@ -405,6 +663,7 @@
         set.done = t.checked;
         const row = t.closest('.log-set');
         if (row) row.classList.toggle('done', t.checked);
+        updateStats();
       } else {
         set[field] = num(t.value);
         updateStats();
@@ -444,6 +703,7 @@
 
       case 'export':
         Store.exportJSON();
+        toast('Archivo exportado');
         break;
 
       case 'import':
@@ -451,12 +711,25 @@
         break;
 
       case 'add-exercise':
+        openPicker();
+        break;
+
+      case 'picker-catalog':
+        closePicker();
         pickExerciseFor((exId) => {
           const ss = curSession();
           if (ss && !ss.entries.some((x) => x.exerciseId === exId))
             ss.entries.push({ exerciseId: exId, note: '', sets: [emptySet()] });
         });
         break;
+
+      case 'fav-entry': {
+        const id = btn.getAttribute('data-ex');
+        const now = Store.toggleFavorite(id);
+        syncFavButtons(id);
+        toast(now ? 'Agregado a favoritos' : 'Quitado de favoritos');
+        break;
+      }
 
       case 'add-set':
         if (s && s.entries[ei]) {
@@ -465,7 +738,7 @@
             prev ? { weight: prev.weight, reps: '', done: false } : emptySet()
           );
           persist();
-          render();
+          appendSetRow(ei);
         }
         break;
 
@@ -475,7 +748,7 @@
           const prev = list[list.length - 1];
           list.push(prev ? { ...prev, done: false } : emptySet());
           persist();
-          render();
+          appendSetRow(ei);
         }
         break;
 
@@ -483,9 +756,8 @@
         const si = Number(btn.getAttribute('data-si'));
         if (s && s.entries[ei]) {
           s.entries[ei].sets.splice(si, 1);
-          if (!s.entries[ei].sets.length) s.entries[ei].sets.push(emptySet());
           persist();
-          render();
+          removeSetRow(ei, si);
         }
         break;
       }
@@ -511,6 +783,7 @@
           if (activeSessionId === id) activeSessionId = null;
           persist();
           render();
+          toast('Sesión borrada');
         }
         break;
       }
@@ -518,7 +791,7 @@
       case 'edit-session':
         activeSessionId = btn.getAttribute('data-session');
         render();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: scrollBehavior() });
         break;
 
       case 'new-template': {
@@ -533,7 +806,7 @@
       case 'edit-template':
         editingTemplateId = btn.getAttribute('data-template');
         render();
-        window.scrollTo({ top: 0, behavior: 'smooth' });
+        window.scrollTo({ top: 0, behavior: scrollBehavior() });
         break;
 
       case 'close-template':
@@ -549,6 +822,7 @@
           if (editingTemplateId === id) editingTemplateId = null;
           persist();
           render();
+          toast('Plantilla borrada');
         }
         break;
       }
@@ -580,18 +854,46 @@
     }
   }
 
+  // Enter en peso → salta a reps. Enter en reps de la última serie → nueva serie
+  // (copia el peso) sin cerrar el teclado. Enter en reps intermedia → serie siguiente.
+  function onKeydown(e) {
+    if (e.key !== 'Enter') return;
+    const t = e.target;
+    const field = t.getAttribute && t.getAttribute('data-field');
+    if (field !== 'weight' && field !== 'reps') return;
+    e.preventDefault();
+    const ei = Number(t.getAttribute('data-ei'));
+    const si = Number(t.getAttribute('data-si'));
+    const s = curSession();
+    if (!s || !s.entries[ei]) return;
+    if (field === 'weight') { focusSet(ei, si, 'reps'); return; }
+    const list = s.entries[ei].sets;
+    if (si >= list.length - 1) {
+      const prev = list[list.length - 1];
+      list.push({ weight: prev ? prev.weight : '', reps: '', done: false });
+      persist();
+      appendSetRow(ei); // enfoca el peso de la nueva
+    } else {
+      focusSet(ei, si + 1, 'weight');
+    }
+  }
+
   // ── API pública ──────────────────────────────────────
   function renderModalLogSection(exerciseId) {
     if (!Store.isAvailable()) return null;
     const cur = curSession();
     const last = Store.getLastEntry(exerciseId, cur ? cur.id : null);
+    const inToday =
+      cur && cur.date === Store.todayISO() &&
+      cur.entries.some((e) => e.exerciseId === exerciseId);
     const box = el('div', { class: 'modal-log' }, [
       last
         ? el('span', { class: 'modal-log-last' }, [
             'Última vez: ', el('b', null, fmtSets(last.sets)), ` · ${relDate(last.date)}`,
           ])
         : el('span', { class: 'modal-log-last' }, 'Sin registros previos'),
-      el('button', { class: 'modal-log-btn', type: 'button' }, '＋ Registrar serie'),
+      el('button', { class: 'modal-log-btn', type: 'button' },
+        inToday ? 'Ir al registro →' : '＋ Agregar a la sesión de hoy'),
     ]);
     box.querySelector('button').addEventListener('click', () => addToCurrentSession(exerciseId));
     return box;
@@ -602,6 +904,7 @@
 
   view.addEventListener('click', onClick);
   view.addEventListener('change', onChange);
+  view.addEventListener('keydown', onKeydown);
 
   // Re-render cuando el dataset de ejercicios termina de cargar (para resolver
   // nombres en el historial montado antes del fetch).
@@ -611,6 +914,7 @@
 
   // Sesión de hoy = sesión activa al abrir.
   (function initActive() {
+    Store.pruneEmptySessions(null);
     const today = Store.todayISO();
     const todays = data().sessions.filter((s) => s.date === today);
     if (todays.length) activeSessionId = todays[todays.length - 1].id;

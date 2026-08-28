@@ -3,7 +3,7 @@
  * IMPORTANTE: subir CACHE_VERSION en cada deploy que cambie index.html o
  * assets/* para que los clientes reciban la actualización.
  */
-const CACHE_VERSION = 'v1';
+const CACHE_VERSION = 'v2';
 const SHELL_CACHE = `palestra-shell-${CACHE_VERSION}`;
 const MEDIA_CACHE = `palestra-media-${CACHE_VERSION}`;
 const MEDIA_MAX_ENTRIES = 150;
@@ -12,6 +12,7 @@ const SHELL_ASSETS = [
   './',
   './index.html',
   './assets/theme-init.js',
+  './assets/ui.js',
   './assets/app.js',
   './assets/store.js',
   './assets/log.js',

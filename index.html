@@ -32,6 +32,16 @@
     }
     :focus:not(:focus-visible) { outline: none; }
 
+    /* ── Reduced motion ─────────────────────────────── */
+    @media (prefers-reduced-motion: reduce) {
+      *, *::before, *::after {
+        animation-duration: .01ms !important;
+        animation-iteration-count: 1 !important;
+        transition-duration: .01ms !important;
+        scroll-behavior: auto !important;
+      }
+    }
+
     /* ── Design Tokens ──────────────────────────────── */
     :root {
       --bg-base:        #f4f4f5;
@@ -1167,12 +1177,14 @@
     <div class="modal-media">
       <img class="modal-gif" id="modal-gif" alt="" />
     </div>
+    <div class="modal-cta" id="modal-cta"></div>
     <div class="modal-meta" id="modal-meta"></div>
     <div class="modal-muscles" id="modal-muscles"></div>
     <div class="modal-instructions" id="modal-instructions"></div>
   </div>
 </div>
 
+<script src="assets/ui.js"></script>
 <script src="assets/store.js"></script>
 <script src="assets/app.js"></script>
 <script src="assets/log.js"></script>

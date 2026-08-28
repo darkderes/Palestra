@@ -13,7 +13,7 @@
   const SIZE_WARN_BYTES = 2 * 1024 * 1024; // ~2 MB — avisar, no bloquear
 
   function emptyData() {
-    return { version: SCHEMA_VERSION, sessions: [], templates: [] };
+    return { version: SCHEMA_VERSION, sessions: [], templates: [], favorites: [] };
   }
 
   // ── Migraciones ──────────────────────────────────────
@@ -24,6 +24,9 @@
     const data = { ...emptyData(), ...raw };
     data.sessions = Array.isArray(raw.sessions) ? raw.sessions : [];
     data.templates = Array.isArray(raw.templates) ? raw.templates : [];
+    data.favorites = Array.isArray(raw.favorites)
+      ? raw.favorites.filter((x) => typeof x === 'string')
+      : [];
     data.version = SCHEMA_VERSION;
     return data;
   }
@@ -79,7 +82,63 @@
   }
 
   function todayISO() {
-    return new Date().toISOString().slice(0, 10); // AAAA-MM-DD
+    // Fecha LOCAL, no UTC: registrar de noche (ARG, UTC-3) no debe saltar al día siguiente.
+    const d = new Date();
+    const mm = String(d.getMonth() + 1).padStart(2, '0');
+    const dd = String(d.getDate()).padStart(2, '0');
+    return `${d.getFullYear()}-${mm}-${dd}`; // AAAA-MM-DD
+  }
+
+  // ── Sesiones vacías ──────────────────────────────────
+  // Una sesión "tiene datos" si alguna serie tiene peso o reps cargados.
+  function sessionHasData(s) {
+    return (s.entries || []).some((e) =>
+      (e.sets || []).some((set) => set.weight !== '' || set.reps !== '')
+    );
+  }
+
+  // Borra las sesiones sin datos (salvo la que se pasa en exceptId, típicamente
+  // la sesión activa). Evita que se acumulen "Sesión — 0 series" en el historial.
+  function pruneEmptySessions(exceptId) {
+    const d = load();
+    const before = d.sessions.length;
+    d.sessions = d.sessions.filter((s) => s.id === exceptId || sessionHasData(s));
+    if (d.sessions.length !== before) save(d);
+  }
+
+  // Ejercicios usados más recientemente en el historial (ids únicos, orden
+  // por fecha de sesión descendente). Lo usa el buscador inline del log.
+  function recentExercises(limit = 8, excludeIds = []) {
+    const d = load();
+    const seen = new Set(excludeIds);
+    const out = [];
+    const sessions = [...d.sessions].sort((a, b) =>
+      String(b.date).localeCompare(String(a.date))
+    );
+    for (const s of sessions) {
+      for (const e of s.entries || []) {
+        if (!seen.has(e.exerciseId)) {
+          seen.add(e.exerciseId);
+          out.push(e.exerciseId);
+        }
+        if (out.length >= limit) return out;
+      }
+    }
+    return out;
+  }
+
+  // ── Favoritos ────────────────────────────────────────
+  function isFavorite(id) {
+    return load().favorites.includes(id);
+  }
+
+  function toggleFavorite(id) {
+    const d = load();
+    const i = d.favorites.indexOf(id);
+    if (i >= 0) d.favorites.splice(i, 1);
+    else d.favorites.push(id);
+    save(d);
+    return i < 0; // true = quedó marcado
   }
 
   // Última serie registrada de un ejercicio en cualquier sesión anterior.
@@ -155,6 +214,7 @@
           incoming.templates.forEach((t) => {
             if (!haveT.has(t.id)) cur.templates.push(t);
           });
+          cur.favorites = [...new Set([...cur.favorites, ...(incoming.favorites || [])])];
           save(cur);
         } else {
           cache = incoming;
@@ -178,5 +238,11 @@
     getLastEntry,
     exportJSON,
     importJSON,
+    sessionHasData,
+    pruneEmptySessions,
+    recentExercises,
+    isFavorite,
+    toggleFavorite,
+    get favorites() { return load().favorites; },
   };
 })();

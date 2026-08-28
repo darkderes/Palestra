@@ -632,10 +632,12 @@
       modalMeta.appendChild(chip);
     });
 
-    // Registro: "última vez" + botón para registrar (assets/log.js)
+    // Registro: "última vez" + botón para agregar a la sesión (assets/log.js)
+    const ctaEl = document.getElementById('modal-cta');
+    if (ctaEl) ctaEl.innerHTML = '';
     if (window.PalestraLog) {
       const logSection = window.PalestraLog.renderModalLogSection(ex.id);
-      if (logSection) modalMeta.appendChild(logSection);
+      if (logSection) (ctaEl || modalMeta).appendChild(logSection);
     }
 
     // Muscles
