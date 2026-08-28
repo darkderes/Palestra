@@ -75,6 +75,38 @@
     return ex ? ex.name : id;
   }
 
+  // ── Miniatura de ejercicio ───────────────────────────
+  // .log-thumb: imagen fija + GIF que aparece al hover (GIF cargado
+  // perezosamente en el primer hover, ver onThumbHover).
+  //   opts.size        -> px (vía la custom prop --thumb; default 40 en CSS)
+  //   opts.interactive -> true  => <button data-act="open-exercise"> (spots 1, 3, 4)
+  //                       false => <span aria-hidden> inerte, el tap burbujea (spot 2)
+  // Devuelve null si el ejercicio todavía no resolvió (dataset sin cargar):
+  // render() se re-dispara en 'palestra:ready' y las miniaturas aparecen entonces.
+  function exThumb(id, opts) {
+    const o = opts || {};
+    const ex = window.Palestra && window.Palestra.getExercise(id);
+    if (!ex || !ex.image) return null;
+
+    const img = el('img', {
+      class: 'log-thumb-img', src: ex.image, alt: '',
+      loading: 'lazy', decoding: 'async', width: 40, height: 40,
+    });
+    const gif = ex.gif_url
+      ? el('img', { class: 'log-thumb-gif', 'data-src': ex.gif_url, alt: '', 'aria-hidden': 'true' })
+      : null;
+    const style = o.size ? `--thumb:${o.size}px` : null;
+
+    if (o.interactive) {
+      return el('button', {
+        class: 'log-thumb', type: 'button', style,
+        'data-act': 'open-exercise', 'data-ex': id,
+        'aria-label': `Ver ${ex.name}`,
+      }, [img, gif]);
+    }
+    return el('span', { class: 'log-thumb', 'aria-hidden': 'true', style }, [img, gif]);
+  }
+
   function curSession() {
     return data().sessions.find((s) => s.id === activeSessionId) || null;
   }
@@ -303,6 +335,7 @@
 
     return el('div', { class: 'log-entry', 'data-entry': entry.exerciseId, 'data-ei': ei }, [
       el('div', { class: 'log-entry-head' }, [
+        exThumb(entry.exerciseId, { size: 40, interactive: true }),
         el('span', { class: 'log-entry-name' }, exName(entry.exerciseId)),
         el('button', {
           class: 'log-fav-btn' + (fav ? ' on' : ''), type: 'button', 'data-act': 'fav-entry',
@@ -350,6 +383,7 @@
 
     const items = (t.items || []).map((it, ii) =>
       el('div', { class: 'log-tpl-item', 'data-ii': ii }, [
+        exThumb(it.exerciseId, { size: 32, interactive: true }),
         el('span', { class: 'name' }, exName(it.exerciseId)),
         el('input', { type: 'number', min: '1', step: '1', value: it.targetSets || '', placeholder: 'series', 'data-field': 'tpl-sets', 'data-ii': ii, 'aria-label': 'Series objetivo' }),
         el('input', { type: 'text', value: it.targetReps || '', placeholder: 'reps', 'data-field': 'tpl-reps', 'data-ii': ii, 'aria-label': 'Repeticiones objetivo' }),
@@ -385,7 +419,8 @@
       const st = sessionVolume(s);
       const body = el('div', { class: 'log-hist-body' }, [
         el('ul', null, (s.entries || []).map((e) =>
-          el('li', null, `${exName(e.exerciseId)}: ${fmtSets(e.sets)}`))),
+          el('li', { class: 'log-hist-ex', 'data-ex-id': e.exerciseId },
+             `${exName(e.exerciseId)}: ${fmtSets(e.sets)}`))),
         s.note ? el('div', null, s.note) : null,
         el('div', { class: 'log-tpl-actions', style: 'margin-left:0' }, [
           el('button', { class: 'log-btn small', type: 'button', 'data-act': 'edit-session', 'data-session': s.id }, 'Editar'),
@@ -531,6 +566,7 @@
     const fav = Store.isFavorite(ex.id);
     return el('div', { class: 'log-picker-row' }, [
       el('button', { class: 'log-picker-item', type: 'button', 'data-pick': ex.id }, [
+        exThumb(ex.id, { size: 36, interactive: false }),
         el('span', { class: 'name' }, ex.name),
         ex.equipment ? el('span', { class: 'equip' }, ex.equipment) : null,
       ]),
@@ -699,6 +735,12 @@
     switch (act) {
       case 'new-session':
         startSession(null);
+        break;
+
+      case 'open-exercise':
+        if (window.Palestra && window.Palestra.openExercise) {
+          window.Palestra.openExercise(btn.getAttribute('data-ex'));
+        }
         break;
 
       case 'export':
@@ -902,9 +944,33 @@
   function show() { view.classList.add('visible'); view.hidden = false; render(); }
   function hide() { view.classList.remove('visible'); view.hidden = true; }
 
+  // Primer hover sobre una miniatura → carga el GIF (igual que las tarjetas del
+  // catálogo, app.js). Respeta prefers-reduced-motion: sin GIF.
+  function onThumbHover(e) {
+    if (reducedMotion()) return;
+    const thumb = e.target.closest('.log-thumb');
+    if (!thumb) return;
+    const gif = thumb.querySelector('.log-thumb-gif');
+    if (gif && gif.dataset.src && !gif.src) gif.src = gif.dataset.src;
+  }
+
+  // Expandir una sesión del historial → inyecta las miniaturas una sola vez.
+  // Evita pedir imágenes de sesiones colapsadas. 'toggle' no burbujea → captura.
+  function onHistToggle(e) {
+    const d = e.target.closest && e.target.closest('.log-hist-item');
+    if (!d || !d.open || d.dataset.thumbs) return;
+    d.dataset.thumbs = '1';
+    d.querySelectorAll('.log-hist-ex[data-ex-id]').forEach((slot) => {
+      const t = exThumb(slot.getAttribute('data-ex-id'), { size: 28, interactive: true });
+      if (t) slot.prepend(t);
+    });
+  }
+
   view.addEventListener('click', onClick);
   view.addEventListener('change', onChange);
   view.addEventListener('keydown', onKeydown);
+  view.addEventListener('mouseover', onThumbHover);
+  view.addEventListener('toggle', onHistToggle, true);
 
   // Re-render cuando el dataset de ejercicios termina de cargar (para resolver
   // nombres en el historial montado antes del fetch).
